@@ -9,7 +9,7 @@ pub fn run() -> Result<()> {
     std::io::stdout().flush()?;
     std::io::stdin().lines().for_each(|line| {
         if let Ok(line) = line {
-            let mut lexer = Lexer::new(line);
+            let mut lexer = Lexer::new(line.as_str());
 
             while let Ok(token) = lexer.next_token() {
                 if token == Token::Eof {

@@ -1,5 +1,8 @@
+pub mod ast;
 pub mod lexer;
+pub mod parser;
 pub mod repl;
+
 use anyhow::Result;
 
 fn main() -> Result<()> {

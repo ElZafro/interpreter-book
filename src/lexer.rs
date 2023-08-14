@@ -1,12 +1,14 @@
 use anyhow::Result;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub enum Token {
-    Illegal(char),
+    #[default]
+    Illegal,
     Eof,
 
     Ident(String),
-    Int(String),
+    Int(i64),
+    Bool(bool),
 
     Assign,
     Plus,
@@ -32,8 +34,6 @@ pub enum Token {
     Let,
     If,
     Else,
-    True,
-    False,
     Return,
 }
 
@@ -45,7 +45,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn new(input: String) -> Self {
+    pub fn new(input: &str) -> Self {
         let mut lexer = Self {
             input: input.into(),
             position: 0,
@@ -109,8 +109,8 @@ impl Lexer {
                         "let" => Token::Let,
                         "if" => Token::If,
                         "else" => Token::Else,
-                        "true" => Token::True,
-                        "false" => Token::False,
+                        "true" => Token::Bool(true),
+                        "false" => Token::Bool(false),
                         "return" => Token::Return,
                         _ => Token::Ident(ident),
                     }
@@ -120,8 +120,7 @@ impl Lexer {
             b'0'..=b'9' => return Ok(Token::Int(self.read_int())),
 
             _ => {
-                Token::Illegal(self.ch.into())
-                // unreachable!("No program should contain this token.")
+                unreachable!("No program should contain this token.");
             }
         };
 
@@ -143,12 +142,15 @@ impl Lexer {
         }
     }
 
-    fn read_int(&mut self) -> String {
+    fn read_int(&mut self) -> i64 {
         let pos = self.position;
         while self.ch.is_ascii_digit() {
             self.read_char();
         }
-        String::from_utf8_lossy(&self.input[pos..self.position]).to_string()
+        String::from_utf8_lossy(&self.input[pos..self.position])
+            .to_string()
+            .parse()
+            .unwrap()
     }
 
     fn peek(&self) -> u8 {
@@ -217,12 +219,12 @@ mod test {
             Token::Let,
             Token::Ident(String::from("five")),
             Token::Assign,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Semicolon,
             Token::Let,
             Token::Ident(String::from("ten")),
             Token::Assign,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Semicolon,
             Token::Let,
             Token::Ident(String::from("add")),
@@ -254,38 +256,38 @@ mod test {
             Token::Minus,
             Token::Slash,
             Token::Asterisk,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Semicolon,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Lt,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Gt,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Semicolon,
             Token::If,
             Token::Lparen,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Lt,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Rparen,
             Token::LSquirly,
             Token::Return,
-            Token::True,
+            Token::Bool(true),
             Token::Semicolon,
             Token::RSquirly,
             Token::Else,
             Token::LSquirly,
             Token::Return,
-            Token::False,
+            Token::Bool(false),
             Token::Semicolon,
             Token::RSquirly,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Equal,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Semicolon,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::NotEqual,
-            Token::Int(String::from("9")),
+            Token::Int(9),
             Token::Semicolon,
             Token::Eof,
         ];
