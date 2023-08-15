@@ -3,7 +3,7 @@ use std::mem::take;
 use anyhow::{bail, Error, Result};
 
 use crate::{
-    ast::{Expression, Identifier, Precedence, Program, Statement},
+    ast::{Expression, Identifier, Infix, Literal, Precedence, Prefix, Program, Statement},
     lexer::{Lexer, Token},
 };
 
@@ -83,15 +83,35 @@ impl Parser {
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression> {
-        println!("{:?}, {:?}", self.current_token, self.peek_token);
-
-        let left = match self.current_token {
+        let mut expr = match self.current_token {
             Token::Ident(_) => self.parse_ident_expr(),
             Token::Int(_) => self.parse_int_expr(),
+            Token::Bool(_) => self.parse_bool_expr(),
+            Token::Lparen => self.parse_grouped_expr(),
+            Token::Plus | Token::Bang | Token::Minus => self.parse_prefix_expr(),
             _ => unreachable!("Expression type is unhandled yet!"),
         };
 
-        left
+        while self.peek_token != Token::Semicolon
+            && precedence < Self::get_precedence(&self.peek_token)
+        {
+            match self.peek_token {
+                Token::Plus
+                | Token::Minus
+                | Token::Slash
+                | Token::Asterisk
+                | Token::Equal
+                | Token::NotEqual
+                | Token::Lt
+                | Token::Gt => {
+                    self.next_token();
+                    expr = self.parse_infix_expr(expr);
+                }
+                _ => bail!("Invalid expression!"),
+            }
+        }
+
+        expr
     }
 
     fn parse_expression_statement(&mut self) -> Result<Statement> {
@@ -101,26 +121,98 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Result<Statement> {
+        if self.current_token == Token::Semicolon {
+            self.next_token();
+        }
+
         let statement = match self.current_token {
             Token::Let => self.parse_let_statement(),
             Token::Return => self.parse_return_statement(),
             _ => self.parse_expression_statement(),
         };
-        while self.current_token != Token::Semicolon {
-            self.next_token();
-        }
-        self.next_token();
         statement
     }
 
     fn parse_program(&mut self) -> Program {
         let mut program = Program::new();
 
-        while self.current_token != Token::Eof {
+        while self.peek_token != Token::Eof {
             program.push(self.parse_statement());
+            self.next_token();
         }
 
         program
+    }
+
+    fn parse_prefix_expr(&mut self) -> Result<Expression> {
+        let prefix = match self.current_token {
+            Token::Bang => Prefix::Not,
+            Token::Plus => Prefix::Plus,
+            Token::Minus => Prefix::Minus,
+            _ => unreachable!(),
+        };
+
+        self.next_token();
+
+        Ok(Expression::Prefix(
+            prefix,
+            Box::new(self.parse_expression(Precedence::Prefix)?),
+        ))
+    }
+
+    fn get_precedence(token: &Token) -> Precedence {
+        match token {
+            Token::Equal | Token::NotEqual => Precedence::Equals,
+            Token::Lt | Token::Gt => Precedence::LessGreater,
+            Token::Plus | Token::Minus => Precedence::Sum,
+            Token::Slash | Token::Asterisk => Precedence::Product,
+            Token::Lparen => Precedence::Call,
+            _ => Precedence::Lowest,
+        }
+    }
+
+    fn parse_infix_expr(&mut self, left: Result<Expression>) -> Result<Expression> {
+        let infix = match self.current_token {
+            Token::Plus => Infix::Plus,
+            Token::Minus => Infix::Minus,
+            Token::Slash => Infix::Divide,
+            Token::Asterisk => Infix::Product,
+            Token::Equal => Infix::Equal,
+            Token::NotEqual => Infix::NotEqual,
+            Token::Lt => Infix::LessThan,
+            Token::Gt => Infix::GreaterThan,
+            _ => bail!("No valid infix operator"),
+        };
+
+        let precedence = Self::get_precedence(&self.current_token);
+        self.next_token();
+
+        Ok(Expression::Infix(
+            infix,
+            Box::new(left?),
+            Box::new(self.parse_expression(precedence)?),
+        ))
+    }
+
+    fn parse_bool_expr(&self) -> Result<Expression> {
+        match self.current_token {
+            Token::Bool(value) => Ok(Expression::Literal(Literal::Bool(value))),
+            _ => bail!("Failed to parse bool expression!"),
+        }
+    }
+
+    fn parse_grouped_expr(&mut self) -> Result<Expression> {
+        self.next_token();
+
+        let expr = self.parse_expression(Precedence::Lowest);
+
+        if self.peek_token != Token::Rparen {
+            bail!("Failed to parse grouped expression!");
+        }
+
+        self.next_token();
+
+        expr
     }
 }
 
@@ -157,7 +249,7 @@ mod test {
         let input = "
         return 5;
         return 10;
-        return add(15);
+        return foobar;
         ";
 
         let lexer = Lexer::new(input);
@@ -177,6 +269,81 @@ mod test {
     #[test]
     fn identifier_expression() {
         let input = "foobar;";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        assert_eq!(program.len(), 1);
+        println!("{:?}", program);
+        assert!(program.iter().all(|x| x.is_ok()));
+    }
+
+    #[test]
+    fn integer_expression() {
+        let input = "555;";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        assert_eq!(program.len(), 1);
+        println!("{:?}", program);
+        assert!(program.iter().all(|x| x.is_ok()));
+    }
+
+    #[test]
+    fn prefix_expression() {
+        let input = "-5;";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        assert_eq!(program.len(), 1);
+        println!("{:?}", program);
+        assert!(program.iter().all(|x| x.is_ok()));
+    }
+
+    #[test]
+    fn infix_expression() {
+        let input = r#"10 - 5 * 5;
+        -1 + 2;
+        alice / bob;
+        "#;
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        assert_eq!(program.len(), 3);
+        println!("{:?}", program);
+        assert!(program.iter().all(|x| x.is_ok()));
+    }
+
+    #[test]
+    fn boolean_expression() {
+        let input = "true == !false;
+        !true == 3 < 2 == false;
+        ";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        assert_eq!(program.len(), 2);
+        println!("{:?}", program);
+        assert!(program.iter().all(|x| x.is_ok()));
+    }
+
+    #[test]
+    fn operator_precedence() {
+        let input = "(1 + 2) * 5";
 
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);

@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+#[derive(PartialEq, PartialOrd)]
 pub enum Precedence {
     Lowest,
     Equals,
@@ -10,10 +11,23 @@ pub enum Precedence {
     Call,
 }
 
+#[derive(Debug)]
 pub enum Prefix {
     Plus,
     Minus,
     Not,
+}
+
+#[derive(Debug)]
+pub enum Infix {
+    Plus,
+    Minus,
+    Divide,
+    Product,
+    Equal,
+    NotEqual,
+    GreaterThan,
+    LessThan,
 }
 
 #[derive(Debug)]
@@ -23,6 +37,8 @@ pub struct Identifier(pub String);
 pub enum Expression {
     Identifier(Identifier),
     Literal(Literal),
+    Prefix(Prefix, Box<Expression>),
+    Infix(Infix, Box<Expression>, Box<Expression>),
 }
 
 #[derive(Debug)]
