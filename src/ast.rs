@@ -39,6 +39,8 @@ pub enum Expression {
     Literal(Literal),
     Prefix(Prefix, Box<Expression>),
     Infix(Infix, Box<Expression>, Box<Expression>),
+    If(IfExpression),
+    Function(Vec<Identifier>, BlockStatement),
 }
 
 #[derive(Debug)]
@@ -47,6 +49,15 @@ pub enum Literal {
     String(String),
     Bool(bool),
 }
+
+#[derive(Debug)]
+pub struct IfExpression {
+    pub condition: Box<Expression>,
+    pub consequence: BlockStatement,
+    pub alternative: BlockStatement,
+}
+
+pub type BlockStatement = Vec<Statement>;
 
 #[derive(Debug)]
 pub enum Statement {

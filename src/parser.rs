@@ -3,7 +3,10 @@ use std::mem::take;
 use anyhow::{bail, Error, Result};
 
 use crate::{
-    ast::{Expression, Identifier, Infix, Literal, Precedence, Prefix, Program, Statement},
+    ast::{
+        BlockStatement, Expression, Identifier, IfExpression, Infix, Literal, Precedence, Prefix,
+        Program, Statement,
+    },
     lexer::{Lexer, Token},
 };
 
@@ -82,6 +85,86 @@ impl Parser {
         ))
     }
 
+    fn parse_block_statement(&mut self) -> Result<BlockStatement> {
+        if self.current_token != Token::LSquirly {
+            bail!("Failed to parse block statement!");
+        }
+
+        self.next_token();
+
+        let mut block = BlockStatement::new();
+
+        while self.current_token != Token::RSquirly && self.current_token != Token::Semicolon {
+            block.push(self.parse_statement()?);
+            self.next_token();
+        }
+
+        self.next_token();
+
+        Ok(block)
+    }
+
+    fn parse_if_expr(&mut self) -> Result<Expression> {
+        self.next_token();
+
+        let condition = self.parse_expression(Precedence::Lowest);
+
+        if self.current_token == Token::Rparen {
+            self.next_token();
+        }
+
+        let consequence = self.parse_block_statement();
+
+        let alternative = match self.current_token {
+            Token::Else => {
+                self.next_token();
+                self.parse_block_statement()
+            }
+            _ => Ok(BlockStatement::new()),
+        };
+
+        Ok(Expression::If(IfExpression {
+            condition: Box::new(condition?),
+            consequence: consequence?,
+            alternative: alternative?,
+        }))
+    }
+
+    fn parse_function_parameters(&mut self) -> Result<Vec<Identifier>> {
+        let mut params = vec![];
+
+        while self.current_token != Token::Rparen {
+            params.push(self.parse_ident()?);
+
+            self.next_token();
+            if self.current_token == Token::Comma {
+                self.next_token();
+            }
+        }
+        self.next_token();
+
+        Ok(params)
+    }
+
+    fn parse_function_expr(&mut self) -> Result<Expression> {
+        self.next_token();
+
+        if self.current_token != Token::Lparen {
+            bail!("Failed to parse function expression!");
+        }
+        self.next_token();
+
+        let params = self.parse_function_parameters();
+
+        if self.current_token != Token::LSquirly {
+            bail!("Failed to parse function body!");
+        }
+
+        let block = self.parse_block_statement();
+
+        Ok(Expression::Function(params?, block?))
+    }
+
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression> {
         let mut expr = match self.current_token {
             Token::Ident(_) => self.parse_ident_expr(),
@@ -89,7 +172,9 @@ impl Parser {
             Token::Bool(_) => self.parse_bool_expr(),
             Token::Lparen => self.parse_grouped_expr(),
             Token::Plus | Token::Bang | Token::Minus => self.parse_prefix_expr(),
-            _ => unreachable!("Expression type is unhandled yet!"),
+            Token::If => self.parse_if_expr(),
+            Token::Function => self.parse_function_expr(),
+            _ => bail!("Expression type {:?} is unhandled yet!", self.current_token),
         };
 
         while self.peek_token != Token::Semicolon
@@ -368,6 +453,37 @@ mod test {
 
         assert_eq!(program.len(), 1);
         println!("{:?}", program);
+        assert!(program.iter().all(|x| x.is_ok()));
+    }
+
+    #[test]
+    fn if_expression() {
+        let input = "if (x < y) { x } else { return y; }";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        assert_eq!(program.len(), 1);
+        println!("{:?}", program);
+        assert!(program.iter().all(|x| x.is_ok()));
+    }
+
+    #[test]
+    fn function_expression() {
+        let input = "fn (x, y) { x + y };
+        let foo = fn() {return 69;}
+        fn(a){}
+        ";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        println!("{:?}", program);
+        assert_eq!(program.len(), 3);
         assert!(program.iter().all(|x| x.is_ok()));
     }
 }
