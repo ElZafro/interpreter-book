@@ -40,7 +40,14 @@ pub enum Expression {
     Prefix(Prefix, Box<Expression>),
     Infix(Infix, Box<Expression>, Box<Expression>),
     If(IfExpression),
-    Function(Vec<Identifier>, BlockStatement),
+    Function {
+        params: Vec<Identifier>,
+        body: BlockStatement,
+    },
+    Call {
+        function: Box<Expression>,
+        args: Vec<Expression>,
+    },
 }
 
 #[derive(Debug)]

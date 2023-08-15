@@ -10,22 +10,18 @@ use crate::{
     lexer::{Lexer, Token},
 };
 
-#[allow(dead_code)]
-struct Parser {
+pub struct Parser {
     lexer: Lexer,
     current_token: Token,
     peek_token: Token,
-    errors: Vec<Error>,
 }
 
-#[allow(dead_code)]
 impl Parser {
-    fn new(lexer: Lexer) -> Self {
+    pub fn new(lexer: Lexer) -> Self {
         let mut parser = Self {
             lexer,
             current_token: Token::default(),
             peek_token: Token::default(),
-            errors: Vec::new(),
         };
 
         parser.next_token();
@@ -154,15 +150,42 @@ impl Parser {
         }
         self.next_token();
 
-        let params = self.parse_function_parameters();
+        let params = self.parse_function_parameters()?;
 
         if self.current_token != Token::LSquirly {
             bail!("Failed to parse function body!");
         }
 
-        let block = self.parse_block_statement();
+        let body = self.parse_block_statement()?;
 
-        Ok(Expression::Function(params?, block?))
+        Ok(Expression::Function { params, body })
+    }
+
+    fn parse_call_args(&mut self) -> Result<Vec<Expression>> {
+        let mut args = vec![];
+
+        while self.current_token != Token::Rparen {
+            args.push(self.parse_expression(Precedence::Lowest)?);
+
+            self.next_token();
+            if self.current_token == Token::Comma {
+                self.next_token();
+            }
+        }
+        self.next_token();
+
+        Ok(args)
+    }
+
+    fn parse_call_expr(&mut self, function: Expression) -> Result<Expression> {
+        self.next_token();
+
+        let args = self.parse_call_args()?;
+
+        Ok(Expression::Call {
+            function: Box::new(function),
+            args,
+        })
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression> {
@@ -190,7 +213,11 @@ impl Parser {
                 | Token::Lt
                 | Token::Gt => {
                     self.next_token();
-                    expr = self.parse_infix_expr(expr);
+                    expr = self.parse_infix_expr(expr?);
+                }
+                Token::Lparen => {
+                    self.next_token();
+                    expr = self.parse_call_expr(expr?);
                 }
                 _ => bail!("Invalid expression!"),
             }
@@ -218,7 +245,7 @@ impl Parser {
         statement
     }
 
-    fn parse_program(&mut self) -> Program {
+    pub fn parse_program(&mut self) -> Program {
         let mut program = Program::new();
 
         while self.peek_token != Token::Eof {
@@ -256,7 +283,7 @@ impl Parser {
         }
     }
 
-    fn parse_infix_expr(&mut self, left: Result<Expression>) -> Result<Expression> {
+    fn parse_infix_expr(&mut self, left: Expression) -> Result<Expression> {
         let infix = match self.current_token {
             Token::Plus => Infix::Plus,
             Token::Minus => Infix::Minus,
@@ -274,7 +301,7 @@ impl Parser {
 
         Ok(Expression::Infix(
             infix,
-            Box::new(left?),
+            Box::new(left),
             Box::new(self.parse_expression(precedence)?),
         ))
     }
@@ -311,8 +338,8 @@ mod test {
     fn let_statements() {
         let input = "
         let x = 5;
-        let y = 10;
-        let foobar = 89;
+        let y = true;
+        let foobar = y;
         ";
 
         let lexer = Lexer::new(input);
@@ -467,6 +494,20 @@ mod test {
 
         assert_eq!(program.len(), 1);
         println!("{:?}", program);
+        assert!(program.iter().all(|x| x.is_ok()));
+    }
+
+    #[test]
+    fn call_expression() {
+        let input = "add(1, 2 * 3,((alice)), 4 + 5);";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        println!("{:?}", program);
+        assert_eq!(program.len(), 1);
         assert!(program.iter().all(|x| x.is_ok()));
     }
 
