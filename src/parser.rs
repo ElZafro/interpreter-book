@@ -1,6 +1,6 @@
 use std::mem::take;
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Result};
 
 use crate::{
     ast::{
@@ -233,22 +233,23 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Result<Statement> {
-        if self.current_token == Token::Semicolon {
-            self.next_token();
-        }
-
         let statement = match self.current_token {
             Token::Let => self.parse_let_statement(),
             Token::Return => self.parse_return_statement(),
             _ => self.parse_expression_statement(),
         };
+
+        if self.peek_token == Token::Semicolon || self.peek_token == Token::Eof {
+            self.next_token();
+        }
+
         statement
     }
 
     pub fn parse_program(&mut self) -> Program {
         let mut program = Program::new();
 
-        while self.peek_token != Token::Eof {
+        while self.current_token != Token::Eof {
             program.push(self.parse_statement());
             self.next_token();
         }
@@ -380,14 +381,15 @@ mod test {
 
     #[test]
     fn identifier_expression() {
-        let input = "foobar;";
+        let input = "foobar;
+        foo";
 
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
         let program = parser.parse_program();
 
-        assert_eq!(program.len(), 1);
+        assert_eq!(program.len(), 2);
         println!("{:?}", program);
         assert!(program.iter().all(|x| x.is_ok()));
     }
@@ -432,8 +434,8 @@ mod test {
 
         let program = parser.parse_program();
 
-        assert_eq!(program.len(), 3);
         println!("{:?}", program);
+        assert_eq!(program.len(), 3);
         assert!(program.iter().all(|x| x.is_ok()));
     }
 
@@ -514,7 +516,7 @@ mod test {
     #[test]
     fn function_expression() {
         let input = "fn (x, y) { x + y };
-        let foo = fn() {return 69;}
+        let foo = fn() {return 69;};
         fn(a){}
         ";
 
