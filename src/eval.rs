@@ -86,4 +86,19 @@ mod test {
         assert!(output.is_ok());
         assert_eq!(output.unwrap(), Object::Int(5))
     }
+
+    #[test]
+    fn bool_expr() {
+        let input = "false; true";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let mut eval = Eval::new();
+
+        let output = eval.eval(parser.parse_program());
+
+        println!("{:?}", output);
+        assert!(output.is_ok());
+        assert_eq!(output.unwrap(), Object::Bool(true))
+    }
 }
