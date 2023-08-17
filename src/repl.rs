@@ -2,7 +2,7 @@ use std::io::Write;
 
 use anyhow::Result;
 
-use crate::{lexer::Lexer, parser::Parser};
+use crate::{eval::Eval, lexer::Lexer, parser::Parser};
 
 pub fn run() -> Result<()> {
     print!(">> ");
@@ -12,9 +12,19 @@ pub fn run() -> Result<()> {
         if let Ok(line) = line {
             let lexer = Lexer::new(line.as_str());
             let mut parser = Parser::new(lexer);
+            let mut eval = Eval::new();
 
-            let program = parser.parse_program();
-            println!("{:?}", program);
+            let result = eval.eval(parser.parse_program());
+
+            match result {
+                Ok(result) => {
+                    println!("{}", result);
+                }
+                Err(result) => {
+                    println!("ERROR: {}", result);
+                }
+            }
+
             print!(">> ");
             _ = std::io::stdout().flush();
         }

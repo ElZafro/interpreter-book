@@ -1,6 +1,8 @@
+use std::fmt::Display;
+
 use crate::ast::{Expression, Literal, Program, Statement};
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Result};
 
 #[derive(PartialEq, Debug)]
 pub enum Object {
@@ -9,15 +11,25 @@ pub enum Object {
     Null,
 }
 
+impl Display for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Object::Int(num) => write!(f, "{}", num),
+            Object::Bool(bool) => write!(f, "{}", bool),
+            Object::Null => write!(f, "{}", "NULL"),
+        }
+    }
+}
+
 pub struct Eval {}
 
 #[allow(dead_code)]
 impl Eval {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {}
     }
 
-    fn eval(&mut self, program: Program) -> Result<Object> {
+    pub fn eval(&mut self, program: Program) -> Result<Object> {
         if program.is_empty() {
             bail!("Can not evaluate an empty program!");
         }
@@ -48,6 +60,7 @@ impl Eval {
     fn eval_literal(&mut self, literal: Literal) -> Result<Object> {
         Ok(match literal {
             Literal::Int(num) => Object::Int(num),
+            Literal::Bool(bool) => Object::Bool(bool),
             _ => bail!("Failed to evaluate literal: {:?}", literal),
         })
     }
