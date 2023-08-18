@@ -12,19 +12,10 @@ pub fn run() -> Result<()> {
         if let Ok(line) = line {
             let lexer = Lexer::new(line.as_str());
             let mut parser = Parser::new(lexer);
-            let mut eval = Eval::new();
+            let eval = Eval::new();
 
-            let result = eval.eval(parser.parse_program());
-
-            match result {
-                Ok(result) => {
-                    println!("{}", result);
-                }
-                Err(result) => {
-                    println!("ERROR: {}", result);
-                }
-            }
-
+            let result = eval.eval_program(parser.parse_program());
+            println!("{}", result);
             print!(">> ");
             _ = std::io::stdout().flush();
         }
