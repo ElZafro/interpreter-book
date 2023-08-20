@@ -1,12 +1,13 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 use crate::ast::{
-    BlockStatement, Expression, IfExpression, Infix, Literal, Prefix, Program, Statement,
+    BlockStatement, Expression, Identifier, IfExpression, Infix, Literal, Prefix, Program,
+    Statement,
 };
 
 use anyhow::{bail, Result};
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Object {
     Int(i64),
     Bool(bool),
@@ -36,15 +37,29 @@ impl Object {
     }
 }
 
-pub struct Eval {}
+pub struct Env {
+    store: HashMap<String, Object>,
+}
+
+impl Env {
+    pub fn new() -> Self {
+        Self {
+            store: HashMap::new(),
+        }
+    }
+}
+
+pub struct Eval {
+    env: Env,
+}
 
 #[allow(dead_code)]
 impl Eval {
     pub fn new() -> Self {
-        Self {}
+        Self { env: Env::new() }
     }
 
-    pub fn eval(&self, program: Program) -> Result<Object> {
+    pub fn eval(&mut self, program: Program) -> Result<Object> {
         let mut result = Object::Null;
 
         for statement in program {
@@ -58,7 +73,7 @@ impl Eval {
         Ok(result)
     }
 
-    fn eval_block_statement(&self, block: BlockStatement) -> Result<Object> {
+    fn eval_block_statement(&mut self, block: BlockStatement) -> Result<Object> {
         let mut result = Object::Null;
 
         for statement in block {
@@ -71,9 +86,13 @@ impl Eval {
         Ok(result)
     }
 
-    fn eval_statement(&self, statement: Statement) -> Result<Object> {
+    fn eval_statement(&mut self, statement: Statement) -> Result<Object> {
         Ok(match statement {
-            Statement::Let(id, value) => Object::Null,
+            Statement::Let(id, value) => {
+                let value = self.eval_expr(value)?;
+                self.env.store.insert(id.0, value.clone());
+                value
+            }
             Statement::Return(ret_value) => {
                 Object::ReturnValue(Box::new(self.eval_expr(ret_value)?))
             }
@@ -81,17 +100,26 @@ impl Eval {
         })
     }
 
-    fn eval_expr(&self, expression: Expression) -> Result<Object> {
+    fn eval_expr(&mut self, expression: Expression) -> Result<Object> {
         match expression {
             Expression::Literal(literal) => self.eval_literal(literal),
             Expression::Prefix(operator, right) => self.eval_prefix(operator, *right),
             Expression::Infix(operator, left, right) => self.eval_infix(operator, *left, *right),
             Expression::If(if_expr) => self.eval_if(if_expr),
-            _ => Ok(Object::Null),
+            Expression::Identifier(id) => self.eval_identifier(id),
+            _ => bail!("{:?} not supported", expression),
         }
     }
 
-    fn eval_if(&self, if_expr: IfExpression) -> Result<Object> {
+    fn eval_identifier(&mut self, id: Identifier) -> Result<Object> {
+        if let Some(obj) = self.env.store.get(&id.0) {
+            return Ok(obj.clone());
+        }
+
+        bail!("Identifier {} not found!", id.0);
+    }
+
+    fn eval_if(&mut self, if_expr: IfExpression) -> Result<Object> {
         let condition = self.eval_expr(*if_expr.condition);
 
         if self.is_truthy(condition?) {
@@ -109,7 +137,12 @@ impl Eval {
         })
     }
 
-    fn eval_infix(&self, operator: Infix, left: Expression, right: Expression) -> Result<Object> {
+    fn eval_infix(
+        &mut self,
+        operator: Infix,
+        left: Expression,
+        right: Expression,
+    ) -> Result<Object> {
         let left = self.eval_expr(left)?;
         let right = self.eval_expr(right)?;
 
@@ -157,7 +190,7 @@ impl Eval {
         }
     }
 
-    fn eval_prefix(&self, operator: Prefix, right: Expression) -> Result<Object> {
+    fn eval_prefix(&mut self, operator: Prefix, right: Expression) -> Result<Object> {
         let expr = self.eval_expr(right);
 
         Ok(match operator {
@@ -184,7 +217,7 @@ impl Eval {
     fn eval_bang(&self, obj: Object) -> Result<Object> {
         Ok(match obj {
             Object::Bool(value) => Object::Bool(!value),
-            _ => bail!("Operator prefix ! is not defined for {:?}", obj.get_type()),
+            _ => bail!("Operator prefix ! is not defined for {}!", obj.get_type()),
         })
     }
 
@@ -210,7 +243,7 @@ mod test {
         for (input, output) in tests {
             let lexer = Lexer::new(input);
             let mut parser = Parser::new(lexer);
-            let eval = Eval::new();
+            let mut eval = Eval::new();
 
             let result = eval.eval(parser.parse_program());
 
@@ -220,7 +253,6 @@ mod test {
                 }
                 _ => {
                     assert!(output.is_err());
-                    println!("input {}", input);
                     assert_eq!(
                         output.err().unwrap().to_string(),
                         result.err().unwrap().to_string()
@@ -250,7 +282,6 @@ mod test {
             ("3 * (3 * 3) + 10", Ok(Object::Int(37))),
             ("(5 + 10 * 2 + 15 / 3) * 2 + -10", Ok(Object::Int(50))),
             ("5++++5", Ok(Object::Int(10))),
-            ("5 + - !5", Err(anyhow!(""))),
         ]);
 
         test(tests);
@@ -287,10 +318,8 @@ mod test {
         let tests = HashMap::from([
             ("!true", Ok(Object::Bool(false))),
             ("!false", Ok(Object::Bool(true))),
-            ("!5", Err(anyhow!(""))),
             ("!!true", Ok(Object::Bool(true))),
             ("!!false", Ok(Object::Bool(false))),
-            ("!!5", Err(anyhow!(""))),
         ]);
 
         test(tests);
@@ -352,6 +381,10 @@ mod test {
                 Err(anyhow!("Operator prefix - is not defined for bool!")),
             ),
             (
+                "5 + - !5",
+                Err(anyhow!("Operator prefix ! is not defined for int!")),
+            ),
+            (
                 "true + false;",
                 Err(anyhow!(
                     "Infix operator + not found for the operands: bool & bool!"
@@ -381,6 +414,22 @@ mod test {
                 Err(anyhow!(
                     "Infix operator + not found for the operands: bool & bool!",
                 )),
+            ),
+            ("foobar", Err(anyhow!("Identifier foobar not found!"))),
+        ]);
+
+        test(tests);
+    }
+
+    #[test]
+    fn let_statements() {
+        let tests = HashMap::from([
+            ("let a = 5; a;", Ok(Object::Int(5))),
+            ("let a = 5 * 5; a;", Ok(Object::Int(25))),
+            ("let a = 5; let b = a; b;", Ok(Object::Int(5))),
+            (
+                "let a = 5; let b = a; let c = a + b + 5; c;",
+                Ok(Object::Int(15)),
             ),
         ]);
 

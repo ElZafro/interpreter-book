@@ -12,7 +12,7 @@ pub fn run() -> Result<()> {
         if let Ok(line) = line {
             let lexer = Lexer::new(line.as_str());
             let mut parser = Parser::new(lexer);
-            let eval = Eval::new();
+            let mut eval = Eval::new();
 
             let result = eval.eval(parser.parse_program());
             println!("{:?}", result);
