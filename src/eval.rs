@@ -25,6 +25,17 @@ impl Display for Object {
     }
 }
 
+impl Object {
+    pub fn get_type(&self) -> &str {
+        match self {
+            Object::Int(_) => "int",
+            Object::Bool(_) => "bool",
+            Object::Null => "null",
+            Object::ReturnValue(val) => val.get_type(),
+        }
+    }
+}
+
 pub struct Eval {}
 
 #[allow(dead_code)]
@@ -107,23 +118,29 @@ impl Eval {
                 return Ok(self.eval_integer_infix(operator, *l, *r))
             }
 
-            (Object::Bool(l), Object::Bool(r)) => {
-                return Ok(self.eval_bool_infix(operator, *l, *r)?)
+            (Object::Bool(_), Object::Bool(_)) => {
+                return Ok(self.eval_bool_infix(operator, left, right)?)
             }
             _ => {}
         };
-        bail!(
-            "No infix operator found for the operands: {:?} & {:?}!",
-            left,
-            right
-        );
+        bail!(format!(
+            "Infix operator {} not found for the operands: {} & {}!",
+            operator,
+            left.get_type(),
+            right.get_type()
+        ));
     }
 
-    fn eval_bool_infix(&self, operator: Infix, left: bool, right: bool) -> Result<Object> {
+    fn eval_bool_infix(&self, operator: Infix, left: Object, right: Object) -> Result<Object> {
         Ok(match operator {
             Infix::Equal => Object::Bool(left == right),
             Infix::NotEqual => Object::Bool(left != right),
-            _ => bail!("Operator {:?} is not defined for bool values!", operator),
+            _ => bail!(format!(
+                "Infix operator {} not found for the operands: {} & {}!",
+                operator,
+                left.get_type(),
+                right.get_type()
+            )),
         })
     }
 
@@ -145,7 +162,7 @@ impl Eval {
 
         Ok(match operator {
             Prefix::Not => self.eval_bang(expr?)?,
-            Prefix::Minus => self.eval_prefix_minus(expr?),
+            Prefix::Minus => self.eval_prefix_minus(expr?)?,
             Prefix::Plus => self.eval_prefix_plus(expr?)?,
         })
     }
@@ -153,21 +170,21 @@ impl Eval {
     fn eval_prefix_plus(&self, obj: Object) -> Result<Object> {
         Ok(match obj {
             Object::Int(_) => obj,
-            _ => bail!("Operator prefix + is not defined for {:?}!", obj),
+            _ => bail!("Operator prefix + is not defined for {}!", obj.get_type()),
         })
     }
 
-    fn eval_prefix_minus(&self, obj: Object) -> Object {
-        match obj {
+    fn eval_prefix_minus(&self, obj: Object) -> Result<Object> {
+        Ok(match obj {
             Object::Int(num) => Object::Int(-num),
-            _ => Object::Null,
-        }
+            _ => bail!("Operator prefix - is not defined for {}!", obj.get_type()),
+        })
     }
 
     fn eval_bang(&self, obj: Object) -> Result<Object> {
         Ok(match obj {
             Object::Bool(value) => Object::Bool(!value),
-            _ => bail!("Operator prefix ! is not defined for {:?}", obj),
+            _ => bail!("Operator prefix ! is not defined for {:?}", obj.get_type()),
         })
     }
 
@@ -202,7 +219,12 @@ mod test {
                     assert_eq!(output.unwrap(), result);
                 }
                 _ => {
-                    assert!(output.is_err())
+                    assert!(output.is_err());
+                    println!("input {}", input);
+                    assert_eq!(
+                        output.err().unwrap().to_string(),
+                        result.err().unwrap().to_string()
+                    )
                 }
             }
         }
@@ -304,6 +326,61 @@ mod test {
                     return 1;
                 }",
                 Ok(Object::Int(10)),
+            ),
+        ]);
+
+        test(tests);
+    }
+
+    #[test]
+    fn error_handling() {
+        let tests = HashMap::from([
+            (
+                "5 + true;",
+                Err(anyhow!(
+                    "Infix operator + not found for the operands: int & bool!"
+                )),
+            ),
+            (
+                "5 + true; 5;",
+                Err(anyhow!(
+                    "Infix operator + not found for the operands: int & bool!"
+                )),
+            ),
+            (
+                "-true",
+                Err(anyhow!("Operator prefix - is not defined for bool!")),
+            ),
+            (
+                "true + false;",
+                Err(anyhow!(
+                    "Infix operator + not found for the operands: bool & bool!"
+                )),
+            ),
+            (
+                "5; true + false; 5",
+                Err(anyhow!(
+                    "Infix operator + not found for the operands: bool & bool!"
+                )),
+            ),
+            (
+                "if (10 > 1) { true + false; }",
+                Err(anyhow!(
+                    "Infix operator + not found for the operands: bool & bool!",
+                )),
+            ),
+            (
+                "
+                if (10 > 1) {
+                if (10 > 1) {
+                return true + false;
+                }
+                return 1;
+                }
+                ",
+                Err(anyhow!(
+                    "Infix operator + not found for the operands: bool & bool!",
+                )),
             ),
         ]);
 
