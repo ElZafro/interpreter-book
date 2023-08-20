@@ -1,22 +1,26 @@
 use std::fmt::Display;
 
-use crate::ast::{Expression, IfExpression, Infix, Literal, Prefix, Program, Statement};
+use crate::ast::{
+    BlockStatement, Expression, IfExpression, Infix, Literal, Prefix, Program, Statement,
+};
 
 use anyhow::{bail, Result};
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug)]
 pub enum Object {
     Int(i64),
     Bool(bool),
     Null,
+    ReturnValue(Box<Object>),
 }
 
 impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Object::Int(num) => write!(f, "{}", num),
-            Object::Bool(bool) => write!(f, "{}", bool),
-            Object::Null => write!(f, "{}", "NULL"),
+            Self::Int(num) => write!(f, "{}", num),
+            Self::Bool(bool) => write!(f, "{}", bool),
+            Self::Null => write!(f, "{}", "NULL"),
+            Self::ReturnValue(value) => write!(f, "{}", *value),
         }
     }
 }
@@ -33,21 +37,39 @@ impl Eval {
         let mut result = Object::Null;
 
         for statement in program {
-            match statement {
-                Err(statement) => return Err(statement),
-                Ok(statement) => match statement {
-                    Statement::Let(id, value) => result = Object::Null,
-                    Statement::Return(ret_value) => {
-                        result = self.eval_expr(ret_value)?;
-                        break;
-                    }
-                    Statement::Expression(expr) => result = self.eval_expr(expr)?,
-                },
+            match self.eval_statement(statement?) {
+                Err(error) => return Err(error),
+                Ok(Object::ReturnValue(value)) => return Ok(*value),
+                Ok(obj) => result = obj,
             }
         }
 
         Ok(result)
     }
+
+    fn eval_block_statement(&self, block: BlockStatement) -> Result<Object> {
+        let mut result = Object::Null;
+
+        for statement in block {
+            match self.eval_statement(statement?) {
+                Err(error) => return Err(error),
+                Ok(Object::ReturnValue(value)) => return Ok(Object::ReturnValue(value)),
+                Ok(obj) => result = obj,
+            }
+        }
+        Ok(result)
+    }
+
+    fn eval_statement(&self, statement: Statement) -> Result<Object> {
+        Ok(match statement {
+            Statement::Let(id, value) => Object::Null,
+            Statement::Return(ret_value) => {
+                Object::ReturnValue(Box::new(self.eval_expr(ret_value)?))
+            }
+            Statement::Expression(expr) => self.eval_expr(expr)?,
+        })
+    }
+
     fn eval_expr(&self, expression: Expression) -> Result<Object> {
         match expression {
             Expression::Literal(literal) => self.eval_literal(literal),
@@ -62,9 +84,9 @@ impl Eval {
         let condition = self.eval_expr(*if_expr.condition);
 
         if self.is_truthy(condition?) {
-            self.eval(if_expr.consequence)
+            self.eval_block_statement(if_expr.consequence)
         } else {
-            self.eval(if_expr.alternative)
+            self.eval_block_statement(if_expr.alternative)
         }
     }
 
@@ -80,15 +102,21 @@ impl Eval {
         let left = self.eval_expr(left)?;
         let right = self.eval_expr(right)?;
 
-        Ok(match (left, right) {
-            (Object::Int(l), Object::Int(r)) => self.eval_integer_infix(operator, l, r),
-            (Object::Bool(l), Object::Bool(r)) => self.eval_bool_infix(operator, l, r)?,
-            _ => bail!(
-                "No infix operator found for the operands: {:?} & {:?}!",
-                left,
-                right
-            ),
-        })
+        match (&left, &right) {
+            (Object::Int(l), Object::Int(r)) => {
+                return Ok(self.eval_integer_infix(operator, *l, *r))
+            }
+
+            (Object::Bool(l), Object::Bool(r)) => {
+                return Ok(self.eval_bool_infix(operator, *l, *r)?)
+            }
+            _ => {}
+        };
+        bail!(
+            "No infix operator found for the operands: {:?} & {:?}!",
+            left,
+            right
+        );
     }
 
     fn eval_bool_infix(&self, operator: Infix, left: bool, right: bool) -> Result<Object> {
