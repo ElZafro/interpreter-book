@@ -64,7 +64,7 @@ pub struct IfExpression {
     pub alternative: BlockStatement,
 }
 
-pub type BlockStatement = Vec<Statement>;
+pub type BlockStatement = Vec<Result<Statement>>;
 
 #[derive(Debug)]
 pub enum Statement {

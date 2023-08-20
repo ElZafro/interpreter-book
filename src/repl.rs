@@ -14,8 +14,8 @@ pub fn run() -> Result<()> {
             let mut parser = Parser::new(lexer);
             let eval = Eval::new();
 
-            let result = eval.eval_program(parser.parse_program());
-            println!("{}", result);
+            let result = eval.eval(parser.parse_program());
+            println!("{:?}", result);
             print!(">> ");
             _ = std::io::stdout().flush();
         }

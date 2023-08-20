@@ -91,7 +91,7 @@ impl Parser {
         let mut block = BlockStatement::new();
 
         while self.current_token != Token::RSquirly && self.current_token != Token::Semicolon {
-            block.push(self.parse_statement()?);
+            block.push(self.parse_statement());
             self.next_token();
         }
 
