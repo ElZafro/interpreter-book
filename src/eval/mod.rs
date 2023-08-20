@@ -1,4 +1,5 @@
-use std::{collections::HashMap, fmt::Display};
+pub mod env;
+pub mod object;
 
 use crate::ast::{
     BlockStatement, Expression, Identifier, IfExpression, Infix, Literal, Prefix, Program,
@@ -7,47 +8,7 @@ use crate::ast::{
 
 use anyhow::{bail, Result};
 
-#[derive(PartialEq, Debug, Clone)]
-pub enum Object {
-    Int(i64),
-    Bool(bool),
-    Null,
-    ReturnValue(Box<Object>),
-}
-
-impl Display for Object {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Int(num) => write!(f, "{}", num),
-            Self::Bool(bool) => write!(f, "{}", bool),
-            Self::Null => write!(f, "{}", "NULL"),
-            Self::ReturnValue(value) => write!(f, "{}", *value),
-        }
-    }
-}
-
-impl Object {
-    pub fn get_type(&self) -> &str {
-        match self {
-            Object::Int(_) => "int",
-            Object::Bool(_) => "bool",
-            Object::Null => "null",
-            Object::ReturnValue(val) => val.get_type(),
-        }
-    }
-}
-
-pub struct Env {
-    store: HashMap<String, Object>,
-}
-
-impl Env {
-    pub fn new() -> Self {
-        Self {
-            store: HashMap::new(),
-        }
-    }
-}
+use self::{env::Env, object::Object};
 
 pub struct Eval {
     env: Env,
@@ -90,7 +51,7 @@ impl Eval {
         Ok(match statement {
             Statement::Let(id, value) => {
                 let value = self.eval_expr(value)?;
-                self.env.store.insert(id.0, value.clone());
+                self.env.assign(id.0, value.clone());
                 value
             }
             Statement::Return(ret_value) => {
@@ -112,8 +73,8 @@ impl Eval {
     }
 
     fn eval_identifier(&mut self, id: Identifier) -> Result<Object> {
-        if let Some(obj) = self.env.store.get(&id.0) {
-            return Ok(obj.clone());
+        if let Some(obj) = self.env.get(&id.0) {
+            return Ok(obj);
         }
 
         bail!("Identifier {} not found!", id.0);

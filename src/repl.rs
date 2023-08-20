@@ -8,14 +8,17 @@ pub fn run() -> Result<()> {
     print!(">> ");
     std::io::stdout().flush()?;
 
+    let mut eval = Eval::new();
     std::io::stdin().lines().for_each(|line| {
         if let Ok(line) = line {
             let lexer = Lexer::new(line.as_str());
             let mut parser = Parser::new(lexer);
-            let mut eval = Eval::new();
 
             let result = eval.eval(parser.parse_program());
-            println!("{:?}", result);
+            match result {
+                Ok(result) => println!("{}", result),
+                Err(result) => println!("ERROR: {}", result),
+            }
             print!(">> ");
             _ = std::io::stdout().flush();
         }
