@@ -2,7 +2,11 @@ use std::io::Write;
 
 use anyhow::Result;
 
-use crate::{eval::Eval, lexer::Lexer, parser::Parser};
+use crate::{
+    eval::{object::Object, Eval},
+    lexer::Lexer,
+    parser::Parser,
+};
 
 pub fn run() -> Result<()> {
     print!(">> ");
@@ -16,6 +20,7 @@ pub fn run() -> Result<()> {
 
             let result = eval.eval(parser.parse_program());
             match result {
+                Ok(Object::Empty) => {}
                 Ok(result) => println!("{}", result),
                 Err(result) => println!("ERROR: {}", result),
             }

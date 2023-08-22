@@ -52,7 +52,7 @@ impl Eval {
             Statement::Let(id, value) => {
                 let value = self.eval_expr(value)?;
                 self.env.assign(id.0, value.clone());
-                value
+                Object::Empty
             }
             Statement::Return(ret_value) => {
                 Object::ReturnValue(Box::new(self.eval_expr(ret_value)?))
@@ -68,9 +68,12 @@ impl Eval {
             Expression::Infix(operator, left, right) => self.eval_infix(operator, *left, *right),
             Expression::If(if_expr) => self.eval_if(if_expr),
             Expression::Identifier(id) => self.eval_identifier(id),
+            Expression::Function { params, body } => self.eval_function(params, body),
             _ => bail!("{:?} not supported", expression),
         }
     }
+
+    fn eval_function(&mut self, params: Vec<Identifier>, body: BlockStatement) -> Result<Object> {}
 
     fn eval_identifier(&mut self, id: Identifier) -> Result<Object> {
         if let Some(obj) = self.env.get(&id.0) {

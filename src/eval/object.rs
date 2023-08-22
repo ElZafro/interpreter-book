@@ -6,6 +6,7 @@ pub enum Object {
     Bool(bool),
     Null,
     ReturnValue(Box<Object>),
+    Empty,
 }
 
 impl Display for Object {
@@ -15,6 +16,7 @@ impl Display for Object {
             Self::Bool(bool) => write!(f, "{}", bool),
             Self::Null => write!(f, "{}", "NULL"),
             Self::ReturnValue(value) => write!(f, "{}", *value),
+            Self::Empty => Ok(()),
         }
     }
 }
@@ -26,6 +28,7 @@ impl Object {
             Object::Bool(_) => "bool",
             Object::Null => "null",
             Object::ReturnValue(val) => val.get_type(),
+            Object::Empty => "empty",
         }
     }
 }
