@@ -91,11 +91,9 @@ impl Parser {
         let mut block = BlockStatement::new();
 
         while self.current_token != Token::RSquirly && self.current_token != Token::Semicolon {
-            block.push(self.parse_statement());
+            block.push(self.parse_statement()?);
             self.next_token();
         }
-
-        self.next_token();
 
         Ok(block)
     }
@@ -110,6 +108,7 @@ impl Parser {
         }
 
         let consequence = self.parse_block_statement();
+        self.next_token();
 
         let alternative = match self.current_token {
             Token::Else => {
@@ -172,7 +171,6 @@ impl Parser {
                 self.next_token();
             }
         }
-        self.next_token();
 
         Ok(args)
     }

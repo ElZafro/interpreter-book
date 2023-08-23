@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use anyhow::Result;
 
 #[derive(PartialEq, PartialOrd)]
@@ -11,14 +13,14 @@ pub enum Precedence {
     Call,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Prefix {
     Plus,
     Minus,
     Not,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Infix {
     Plus,
     Minus,
@@ -45,10 +47,16 @@ impl std::fmt::Display for Infix {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Identifier(pub String);
 
-#[derive(Debug)]
+impl Borrow<str> for Identifier {
+    fn borrow(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     Identifier(Identifier),
     Literal(Literal),
@@ -65,23 +73,23 @@ pub enum Expression {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Int(i64),
     String(String),
     Bool(bool),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IfExpression {
     pub condition: Box<Expression>,
     pub consequence: BlockStatement,
     pub alternative: BlockStatement,
 }
 
-pub type BlockStatement = Vec<Result<Statement>>;
+pub type BlockStatement = Vec<Statement>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Let(Identifier, Expression),
     Return(Expression),

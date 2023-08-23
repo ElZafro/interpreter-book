@@ -1,6 +1,8 @@
 pub mod env;
 pub mod object;
 
+use std::{cell::RefCell, rc::Rc};
+
 use crate::ast::{
     BlockStatement, Expression, Identifier, IfExpression, Infix, Literal, Prefix, Program,
     Statement,
@@ -11,13 +13,15 @@ use anyhow::{bail, Result};
 use self::{env::Env, object::Object};
 
 pub struct Eval {
-    env: Env,
+    env: Rc<RefCell<Env>>,
 }
 
 #[allow(dead_code)]
 impl Eval {
     pub fn new() -> Self {
-        Self { env: Env::new() }
+        Self {
+            env: Rc::new(RefCell::new(Env::new())),
+        }
     }
 
     pub fn eval(&mut self, program: Program) -> Result<Object> {
@@ -38,7 +42,7 @@ impl Eval {
         let mut result = Object::Null;
 
         for statement in block {
-            match self.eval_statement(statement?) {
+            match self.eval_statement(statement) {
                 Err(error) => return Err(error),
                 Ok(Object::ReturnValue(value)) => return Ok(Object::ReturnValue(value)),
                 Ok(obj) => result = obj,
@@ -51,7 +55,7 @@ impl Eval {
         Ok(match statement {
             Statement::Let(id, value) => {
                 let value = self.eval_expr(value)?;
-                self.env.assign(id.0, value.clone());
+                self.env.borrow_mut().assign(id.0, value.clone());
                 Object::Empty
             }
             Statement::Return(ret_value) => {
@@ -68,15 +72,15 @@ impl Eval {
             Expression::Infix(operator, left, right) => self.eval_infix(operator, *left, *right),
             Expression::If(if_expr) => self.eval_if(if_expr),
             Expression::Identifier(id) => self.eval_identifier(id),
-            Expression::Function { params, body } => self.eval_function(params, body),
-            _ => bail!("{:?} not supported", expression),
+            Expression::Function { params, body } => {
+                Ok(Object::Function(params, body, self.env.clone()))
+            }
+            Expression::Call { function, args } => self.eval_call(function, args),
         }
     }
 
-    fn eval_function(&mut self, params: Vec<Identifier>, body: BlockStatement) -> Result<Object> {}
-
     fn eval_identifier(&mut self, id: Identifier) -> Result<Object> {
-        if let Some(obj) = self.env.get(&id.0) {
+        if let Some(obj) = self.env.borrow().get(&id.0) {
             return Ok(obj);
         }
 
@@ -191,15 +195,58 @@ impl Eval {
             _ => true,
         }
     }
+
+    fn eval_call(&mut self, function: Box<Expression>, args: Vec<Expression>) -> Result<Object> {
+        let args = args
+            .iter()
+            .map(|x| self.eval_expr(x.clone()))
+            .collect::<Vec<_>>();
+
+        let function = self.eval_expr(*function)?;
+
+        let (params, body, env) = match &function {
+            Object::Function(p, b, e) => (p, b, e),
+            Object => bail!("{} is not a valid function!", function),
+        };
+
+        if params.len() != args.len() {
+            bail!(
+                "Wrong number of arguments. Expected: {}. Given: {}",
+                params.len(),
+                args.len()
+            );
+        }
+
+        let current_env = self.env.clone();
+
+        let mut scoped_env = Env::new();
+        scoped_env.outer = Some(self.env.clone());
+
+        for (id, value) in params.into_iter().zip(args.into_iter()) {
+            scoped_env.assign(id.0.clone(), value?);
+        }
+
+        self.env = Rc::new(RefCell::new(scoped_env));
+        let obj = self.eval_block_statement(body.clone());
+
+        self.env = current_env;
+
+        obj
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-    use crate::{eval::Object, lexer::Lexer, parser::Parser};
+    use crate::{
+        ast::{Expression, Identifier, Infix, Literal, Statement},
+        eval::Object,
+        lexer::Lexer,
+        parser::Parser,
+    };
 
-    use super::Eval;
+    use super::{env::Env, Eval};
 
     use anyhow::{anyhow, Result};
 
@@ -395,6 +442,54 @@ mod test {
                 "let a = 5; let b = a; let c = a + b + 5; c;",
                 Ok(Object::Int(15)),
             ),
+        ]);
+
+        test(tests);
+    }
+
+    #[test]
+    fn function() {
+        let tests = HashMap::from([(
+            "fn(x) { x + 2; }; ",
+            Ok(Object::Function(
+                vec![Identifier("x".into())],
+                vec![Statement::Expression(Expression::Infix(
+                    Infix::Plus,
+                    Box::new(Expression::Identifier(Identifier("x".into()))),
+                    Box::new(Expression::Literal(Literal::Int(2))),
+                ))],
+                Rc::new(RefCell::new(Env::new())),
+            )),
+        )]);
+
+        test(tests);
+    }
+
+    #[test]
+    fn function_application() {
+        let tests = HashMap::from([
+            (
+                "let identity = fn(x) { x; }; identity(5);",
+                Ok(Object::Int(5)),
+            ),
+            (
+                "let identity = fn(x) { return x; }; identity(5);",
+                Ok(Object::Int(5)),
+            ),
+            (
+                "let double = fn(x) { x * 2; }; double(5);",
+                Ok(Object::Int(10)),
+            ),
+            (
+                "let add = fn(x, y) { x + y; }; add(5, 5);",
+                Ok(Object::Int(10)),
+            ),
+            ("let id = fn(x) { x; }; id(id(5));", Ok(Object::Int(5))),
+            (
+                "let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));",
+                Ok(Object::Int(20)),
+            ),
+            ("fn(x) { x; }(5)", Ok(Object::Int(5))),
         ]);
 
         test(tests);

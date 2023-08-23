@@ -1,4 +1,8 @@
-use std::fmt::Display;
+use std::{cell::RefCell, fmt::Display, rc::Rc};
+
+use crate::ast::{BlockStatement, Identifier};
+
+use super::env::Env;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Object {
@@ -7,6 +11,7 @@ pub enum Object {
     Null,
     ReturnValue(Box<Object>),
     Empty,
+    Function(Vec<Identifier>, BlockStatement, Rc<RefCell<Env>>),
 }
 
 impl Display for Object {
@@ -17,6 +22,9 @@ impl Display for Object {
             Self::Null => write!(f, "{}", "NULL"),
             Self::ReturnValue(value) => write!(f, "{}", *value),
             Self::Empty => Ok(()),
+            Self::Function(params, body, _) => {
+                write!(f, "fn({})", params.join(","))
+            }
         }
     }
 }
@@ -29,6 +37,7 @@ impl Object {
             Object::Null => "null",
             Object::ReturnValue(val) => val.get_type(),
             Object::Empty => "empty",
+            Object::Function(_, _, _) => "function",
         }
     }
 }
