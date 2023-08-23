@@ -22,7 +22,7 @@ impl Display for Object {
             Self::Null => write!(f, "{}", "NULL"),
             Self::ReturnValue(value) => write!(f, "{}", *value),
             Self::Empty => Ok(()),
-            Self::Function(params, body, _) => {
+            Self::Function(params, _, _) => {
                 write!(f, "fn({})", params.join(","))
             }
         }

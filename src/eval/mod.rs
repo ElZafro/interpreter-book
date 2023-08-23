@@ -206,7 +206,7 @@ impl Eval {
 
         let (params, body, env) = match &function {
             Object::Function(p, b, e) => (p, b, e),
-            Object => bail!("{} is not a valid function!", function),
+            _ => bail!("{} is not a valid function!", function),
         };
 
         if params.len() != args.len() {
@@ -220,7 +220,7 @@ impl Eval {
         let current_env = self.env.clone();
 
         let mut scoped_env = Env::new();
-        scoped_env.outer = Some(self.env.clone());
+        scoped_env.outer = Some(env.clone());
 
         for (id, value) in params.into_iter().zip(args.into_iter()) {
             scoped_env.assign(id.0.clone(), value?);
@@ -263,6 +263,7 @@ mod test {
                     assert_eq!(output.unwrap(), result);
                 }
                 _ => {
+                    println!("{:?}", result);
                     assert!(output.is_err());
                     assert_eq!(
                         output.err().unwrap().to_string(),
@@ -491,6 +492,21 @@ mod test {
             ),
             ("fn(x) { x; }(5)", Ok(Object::Int(5))),
         ]);
+
+        test(tests);
+    }
+
+    #[test]
+    fn closures() {
+        let tests = HashMap::from([(
+            "
+                let newAdder = fn(x) {
+                    fn(y) { x + y };
+                };
+                let addTwo = newAdder(2);
+                addTwo(2);",
+            Ok(Object::Int(4)),
+        )]);
 
         test(tests);
     }
