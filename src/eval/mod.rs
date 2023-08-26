@@ -106,7 +106,7 @@ impl Eval {
         Ok(match literal {
             Literal::Int(num) => Object::Int(num),
             Literal::Bool(bool) => Object::Bool(bool),
-            _ => Object::Null,
+            Literal::String(s) => Object::String(s),
         })
     }
 
@@ -297,6 +297,16 @@ mod test {
             ("(5 + 10 * 2 + 15 / 3) * 2 + -10", Ok(Object::Int(50))),
             ("5++++5", Ok(Object::Int(10))),
         ]);
+
+        test(tests);
+    }
+
+    #[test]
+    fn string_literal() {
+        let tests = HashMap::from([(
+            r#""Hello World!""#,
+            Ok(Object::String("Hello World!".into())),
+        )]);
 
         test(tests);
     }

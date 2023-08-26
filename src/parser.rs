@@ -18,16 +18,11 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
-        let mut parser = Self {
+        Self {
             lexer,
             current_token: Token::default(),
             peek_token: Token::default(),
-        };
-
-        _ = parser.next_token();
-        _ = parser.next_token();
-
-        parser
+        }
     }
 
     fn next_token(&mut self) -> Result<()> {
@@ -255,6 +250,9 @@ impl Parser {
 
     pub fn parse_program(&mut self) -> Result<Program> {
         let mut program = Program::new();
+
+        self.next_token()?;
+        self.next_token()?;
 
         while self.current_token != Token::Eof {
             program.push(self.parse_statement());

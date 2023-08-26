@@ -8,6 +8,7 @@ use super::env::Env;
 pub enum Object {
     Int(i64),
     Bool(bool),
+    String(String),
     Null,
     ReturnValue(Box<Object>),
     Empty,
@@ -19,6 +20,7 @@ impl Display for Object {
         match self {
             Self::Int(num) => write!(f, "{}", num),
             Self::Bool(bool) => write!(f, "{}", bool),
+            Self::String(s) => write!(f, "{}", s),
             Self::Null => write!(f, "NULL"),
             Self::ReturnValue(value) => write!(f, "{}", *value),
             Self::Empty => Ok(()),
@@ -34,6 +36,7 @@ impl Object {
         match self {
             Object::Int(_) => "int",
             Object::Bool(_) => "bool",
+            Object::String(_) => "string",
             Object::Null => "null",
             Object::ReturnValue(val) => val.get_type(),
             Object::Empty => "empty",
