@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 #[derive(Debug, PartialEq, Default)]
 pub enum Token {
@@ -119,9 +119,7 @@ impl Lexer {
 
             b'0'..=b'9' => return Ok(Token::Int(self.read_int())),
 
-            _ => {
-                unreachable!("No program should contain this token.");
-            }
+            _ => bail!("No program should contain this token: {}", self.ch as char),
         };
 
         self.read_char();

@@ -18,7 +18,10 @@ pub fn run() -> Result<()> {
             let lexer = Lexer::new(line.as_str());
             let mut parser = Parser::new(lexer);
 
-            let result = eval.eval(parser.parse_program());
+            let result = match parser.parse_program() {
+                Ok(program) => eval.eval(program),
+                Err(error) => Err(error),
+            };
             match result {
                 Ok(Object::Empty) => {}
                 Ok(result) => println!("{}", result),

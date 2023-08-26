@@ -24,15 +24,16 @@ impl Parser {
             peek_token: Token::default(),
         };
 
-        parser.next_token();
-        parser.next_token();
+        _ = parser.next_token();
+        _ = parser.next_token();
 
         parser
     }
 
-    fn next_token(&mut self) {
+    fn next_token(&mut self) -> Result<()> {
         self.current_token = take(&mut self.peek_token);
-        self.peek_token = self.lexer.next_token().unwrap();
+        self.peek_token = self.lexer.next_token()?;
+        Ok(())
     }
 
     fn parse_ident(&mut self) -> Result<Identifier> {
@@ -54,19 +55,19 @@ impl Parser {
     }
 
     fn parse_let_statement(&mut self) -> Result<Statement> {
-        self.next_token();
+        self.next_token()?;
 
         let name = match self.current_token {
             Token::Ident(_) => self.parse_ident(),
             _ => bail!("Missing indentifier in let statement"),
         };
 
-        self.next_token();
+        self.next_token()?;
         if self.current_token != Token::Assign {
             bail!("Missing assign token after identifier in let statement");
         }
 
-        self.next_token();
+        self.next_token()?;
         Ok(Statement::Let(
             name?,
             self.parse_expression(Precedence::Lowest)?,
@@ -74,7 +75,7 @@ impl Parser {
     }
 
     fn parse_return_statement(&mut self) -> Result<Statement> {
-        self.next_token();
+        self.next_token()?;
 
         Ok(Statement::Return(
             self.parse_expression(Precedence::Lowest)?,
@@ -86,33 +87,33 @@ impl Parser {
             bail!("Failed to parse block statement!");
         }
 
-        self.next_token();
+        self.next_token()?;
 
         let mut block = BlockStatement::new();
 
         while self.current_token != Token::RSquirly && self.current_token != Token::Semicolon {
             block.push(self.parse_statement()?);
-            self.next_token();
+            self.next_token()?;
         }
 
         Ok(block)
     }
 
     fn parse_if_expr(&mut self) -> Result<Expression> {
-        self.next_token();
+        self.next_token()?;
 
         let condition = self.parse_expression(Precedence::Lowest);
 
         if self.current_token == Token::Rparen {
-            self.next_token();
+            self.next_token()?;
         }
 
         let consequence = self.parse_block_statement();
-        self.next_token();
+        self.next_token()?;
 
         let alternative = match self.current_token {
             Token::Else => {
-                self.next_token();
+                self.next_token()?;
                 self.parse_block_statement()
             }
             _ => Ok(BlockStatement::new()),
@@ -131,23 +132,23 @@ impl Parser {
         while self.current_token != Token::Rparen {
             params.push(self.parse_ident()?);
 
-            self.next_token();
+            self.next_token()?;
             if self.current_token == Token::Comma {
-                self.next_token();
+                self.next_token()?;
             }
         }
-        self.next_token();
+        self.next_token()?;
 
         Ok(params)
     }
 
     fn parse_function_expr(&mut self) -> Result<Expression> {
-        self.next_token();
+        self.next_token()?;
 
         if self.current_token != Token::Lparen {
             bail!("Failed to parse function expression!");
         }
-        self.next_token();
+        self.next_token()?;
 
         let params = self.parse_function_parameters()?;
 
@@ -166,9 +167,9 @@ impl Parser {
         while self.current_token != Token::Rparen {
             args.push(self.parse_expression(Precedence::Lowest)?);
 
-            self.next_token();
+            self.next_token()?;
             if self.current_token == Token::Comma {
-                self.next_token();
+                self.next_token()?;
             }
         }
 
@@ -176,7 +177,7 @@ impl Parser {
     }
 
     fn parse_call_expr(&mut self, function: Expression) -> Result<Expression> {
-        self.next_token();
+        self.next_token()?;
 
         let args = self.parse_call_args()?;
 
@@ -210,11 +211,11 @@ impl Parser {
                 | Token::NotEqual
                 | Token::Lt
                 | Token::Gt => {
-                    self.next_token();
+                    self.next_token()?;
                     expr = self.parse_infix_expr(expr?);
                 }
                 Token::Lparen => {
-                    self.next_token();
+                    self.next_token()?;
                     expr = self.parse_call_expr(expr?);
                 }
                 _ => bail!("Invalid expression!"),
@@ -238,21 +239,21 @@ impl Parser {
         };
 
         if self.peek_token == Token::Semicolon || self.peek_token == Token::Eof {
-            self.next_token();
+            self.next_token()?;
         }
 
         statement
     }
 
-    pub fn parse_program(&mut self) -> Program {
+    pub fn parse_program(&mut self) -> Result<Program> {
         let mut program = Program::new();
 
         while self.current_token != Token::Eof {
             program.push(self.parse_statement());
-            self.next_token();
+            self.next_token()?;
         }
 
-        program
+        Ok(program)
     }
 
     fn parse_prefix_expr(&mut self) -> Result<Expression> {
@@ -263,7 +264,7 @@ impl Parser {
             _ => unreachable!(),
         };
 
-        self.next_token();
+        self.next_token()?;
 
         Ok(Expression::Prefix(
             prefix,
@@ -296,7 +297,7 @@ impl Parser {
         };
 
         let precedence = Self::get_precedence(&self.current_token);
-        self.next_token();
+        self.next_token()?;
 
         Ok(Expression::Infix(
             infix,
@@ -313,7 +314,7 @@ impl Parser {
     }
 
     fn parse_grouped_expr(&mut self) -> Result<Expression> {
-        self.next_token();
+        self.next_token()?;
 
         let expr = self.parse_expression(Precedence::Lowest);
 
@@ -321,7 +322,7 @@ impl Parser {
             bail!("Failed to parse grouped expression!");
         }
 
-        self.next_token();
+        self.next_token()?;
 
         expr
     }
@@ -344,7 +345,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         assert_eq!(program.len(), 3);
 
@@ -366,7 +367,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         assert_eq!(program.len(), 3);
 
@@ -385,7 +386,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         assert_eq!(program.len(), 2);
         println!("{:?}", program);
@@ -399,7 +400,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         assert_eq!(program.len(), 1);
         println!("{:?}", program);
@@ -413,7 +414,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         assert_eq!(program.len(), 1);
         println!("{:?}", program);
@@ -430,7 +431,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         println!("{:?}", program);
         assert_eq!(program.len(), 3);
@@ -446,7 +447,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         assert_eq!(program.len(), 2);
         println!("{:?}", program);
@@ -460,7 +461,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         assert_eq!(program.len(), 1);
         println!("{:?}", program);
@@ -476,7 +477,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         assert_eq!(program.len(), 1);
         println!("{:?}", program);
@@ -490,7 +491,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         assert_eq!(program.len(), 1);
         println!("{:?}", program);
@@ -504,7 +505,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         println!("{:?}", program);
         assert_eq!(program.len(), 1);
@@ -521,7 +522,7 @@ mod test {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+        let program = parser.parse_program().unwrap();
 
         println!("{:?}", program);
         assert_eq!(program.len(), 3);

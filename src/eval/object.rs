@@ -19,7 +19,7 @@ impl Display for Object {
         match self {
             Self::Int(num) => write!(f, "{}", num),
             Self::Bool(bool) => write!(f, "{}", bool),
-            Self::Null => write!(f, "{}", "NULL"),
+            Self::Null => write!(f, "NULL"),
             Self::ReturnValue(value) => write!(f, "{}", *value),
             Self::Empty => Ok(()),
             Self::Function(params, _, _) => {

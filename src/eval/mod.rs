@@ -16,7 +16,12 @@ pub struct Eval {
     env: Rc<RefCell<Env>>,
 }
 
-#[allow(dead_code)]
+impl Default for Eval {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Eval {
     pub fn new() -> Self {
         Self {
@@ -75,7 +80,7 @@ impl Eval {
             Expression::Function { params, body } => {
                 Ok(Object::Function(params, body, self.env.clone()))
             }
-            Expression::Call { function, args } => self.eval_call(function, args),
+            Expression::Call { function, args } => self.eval_call(*function, args),
         }
     }
 
@@ -120,7 +125,7 @@ impl Eval {
             }
 
             (Object::Bool(_), Object::Bool(_)) => {
-                return Ok(self.eval_bool_infix(operator, left, right)?)
+                return self.eval_bool_infix(operator, left, right)
             }
             _ => {}
         };
@@ -190,19 +195,16 @@ impl Eval {
     }
 
     fn is_truthy(&self, condition: Object) -> bool {
-        match condition {
-            Object::Null | Object::Bool(false) => false,
-            _ => true,
-        }
+        !matches!(condition, Object::Null | Object::Bool(false))
     }
 
-    fn eval_call(&mut self, function: Box<Expression>, args: Vec<Expression>) -> Result<Object> {
+    fn eval_call(&mut self, function: Expression, args: Vec<Expression>) -> Result<Object> {
         let args = args
             .iter()
             .map(|x| self.eval_expr(x.clone()))
             .collect::<Vec<_>>();
 
-        let function = self.eval_expr(*function)?;
+        let function = self.eval_expr(function)?;
 
         let (params, body, env) = match &function {
             Object::Function(p, b, e) => (p, b, e),
@@ -222,7 +224,7 @@ impl Eval {
         let mut scoped_env = Env::new();
         scoped_env.outer = Some(env.clone());
 
-        for (id, value) in params.into_iter().zip(args.into_iter()) {
+        for (id, value) in params.iter().zip(args.into_iter()) {
             scoped_env.assign(id.0.clone(), value?);
         }
 
@@ -256,7 +258,7 @@ mod test {
             let mut parser = Parser::new(lexer);
             let mut eval = Eval::new();
 
-            let result = eval.eval(parser.parse_program());
+            let result = eval.eval(parser.parse_program().unwrap());
 
             match result {
                 Ok(result) => {
