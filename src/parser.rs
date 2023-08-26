@@ -39,7 +39,7 @@ impl Parser {
     fn parse_ident(&mut self) -> Result<Identifier> {
         match &self.current_token {
             Token::Ident(name) => Ok(Identifier(name.clone())),
-            _ => bail!("Failed to parse identifier"),
+            _ => bail!("Failed to parse identifier!"),
         }
     }
 
@@ -47,9 +47,16 @@ impl Parser {
         Ok(Expression::Identifier(self.parse_ident()?))
     }
 
+    fn parse_string_expr(&mut self) -> Result<Expression> {
+        match &self.current_token {
+            Token::String(s) => Ok(Expression::Literal(Literal::String(s.clone()))),
+            _ => bail!("Failed to parse string!"),
+        }
+    }
+
     fn parse_int_expr(&mut self) -> Result<Expression> {
         match self.current_token {
-            Token::Int(num) => Ok(Expression::Literal(crate::ast::Literal::Int(num))),
+            Token::Int(num) => Ok(Expression::Literal(Literal::Int(num))),
             _ => bail!("Failed to parse int"),
         }
     }
@@ -196,6 +203,7 @@ impl Parser {
             Token::Plus | Token::Bang | Token::Minus => self.parse_prefix_expr(),
             Token::If => self.parse_if_expr(),
             Token::Function => self.parse_function_expr(),
+            Token::String(_) => self.parse_string_expr(),
             _ => bail!("Expression type {:?} is unhandled yet!", self.current_token),
         };
 
@@ -526,6 +534,22 @@ mod test {
 
         println!("{:?}", program);
         assert_eq!(program.len(), 3);
+        assert!(program.iter().all(|x| x.is_ok()));
+    }
+
+    #[test]
+    fn string_literal() {
+        let input = r#"
+        "hello world"
+        "#;
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program().unwrap();
+
+        println!("{:?}", program);
+        assert_eq!(program.len(), 1);
         assert!(program.iter().all(|x| x.is_ok()));
     }
 }
