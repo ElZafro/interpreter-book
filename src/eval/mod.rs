@@ -127,6 +127,9 @@ impl Eval {
             (Object::Bool(_), Object::Bool(_)) => {
                 return self.eval_bool_infix(operator, left, right)
             }
+            (Object::String(ref l), Object::String(ref r)) => {
+                return self.eval_string_infix(operator, l, r)
+            }
             _ => {}
         };
         bail!(format!(
@@ -146,6 +149,16 @@ impl Eval {
                 operator,
                 left.get_type(),
                 right.get_type()
+            )),
+        })
+    }
+
+    fn eval_string_infix(&self, operator: Infix, left: &String, right: &String) -> Result<Object> {
+        Ok(match operator {
+            Infix::Plus => Object::String(String::from(left) + right),
+            _ => bail!(format!(
+                "Infix operator {} not found for the operands: string & string!",
+                operator,
             )),
         })
     }
@@ -312,6 +325,18 @@ mod test {
     }
 
     #[test]
+    fn string_concat() {
+        let tests = HashMap::from([(
+            r#"
+            "Hello" + " "+ "World!"
+            "#,
+            Ok(Object::String("Hello World!".into())),
+        )]);
+
+        test(tests);
+    }
+
+    #[test]
     fn bool_expr() {
         let tests = HashMap::from([
             ("true", Ok(Object::Bool(true))),
@@ -429,10 +454,10 @@ mod test {
             (
                 "
                 if (10 > 1) {
-                if (10 > 1) {
-                return true + false;
-                }
-                return 1;
+                    if (10 > 1) {
+                        return true + false;
+                    }
+                    return 1;
                 }
                 ",
                 Err(anyhow!(
@@ -440,6 +465,14 @@ mod test {
                 )),
             ),
             ("foobar", Err(anyhow!("Identifier foobar not found!"))),
+            (
+                r#"
+            "Hello" - "world"
+            "#,
+                Err(anyhow!(
+                    "Infix operator - not found for the operands: string & string!"
+                )),
+            ),
         ]);
 
         test(tests);
