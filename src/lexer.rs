@@ -9,6 +9,7 @@ pub enum Token {
     Ident(String),
     Int(i64),
     Bool(bool),
+    String(String),
 
     Assign,
     Plus,
@@ -118,12 +119,27 @@ impl Lexer {
             }
 
             b'0'..=b'9' => return Ok(Token::Int(self.read_int())),
-
+            b'"' => return Ok(Token::String(self.read_string()?)),
             _ => bail!("No program should contain this token: {}", self.ch as char),
         };
 
         self.read_char();
         Ok(token)
+    }
+
+    fn read_string(&mut self) -> Result<String> {
+        self.read_char();
+
+        let pos = self.position;
+        while self.ch != b'"' {
+            self.read_char();
+            if self.ch == 0 {
+                bail!("String is not properly closed!")
+            }
+        }
+        self.read_char();
+
+        Ok(String::from_utf8_lossy(&self.input[pos..self.position - 1]).to_string())
     }
 
     fn read_identifier(&mut self) -> String {
@@ -191,7 +207,7 @@ mod test {
 
     #[test]
     fn get_next_complete() -> Result<()> {
-        let input = "let five = 5;
+        let input = r#"let five = 5;
         let ten = 10;
         
         let add = fn(x, y) {
@@ -210,7 +226,9 @@ mod test {
 
         10 == 10;
         10 != 9;
-        ";
+
+        "foobar"
+        "foo bar""#;
 
         let mut lexer = Lexer::new(input.into());
         let tokens = vec![
@@ -287,6 +305,8 @@ mod test {
             Token::NotEqual,
             Token::Int(9),
             Token::Semicolon,
+            Token::String("foobar".into()),
+            Token::String("foo bar".into()),
             Token::Eof,
         ];
 
